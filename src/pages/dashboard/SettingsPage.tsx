@@ -14,9 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Settings, User, BellRing, Shield, CreditCard } from "lucide-react";
+import supabase from "@/lib/supabase";
 
 const SettingsPage = () => {
   const { toast } = useToast();
+
   const [storeSettings, setStoreSettings] = useState({
     storeName: "RP-CMS Store",
     storeEmail: "rajendrapanjiyar101@gmail.com",
@@ -28,6 +30,10 @@ const SettingsPage = () => {
     enableGuestCheckout: false,
     enableReviews: true,
   });
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleStoreSettingsChange = (
     e: React.ChangeEvent<HTMLInputElement>
@@ -44,6 +50,44 @@ const SettingsPage = () => {
       title: "Settings Updated",
       description: "Your store settings have been saved successfully.",
     });
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast({
+        title: "Missing Fields",
+        description: "Please fill in all password fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Password Mismatch",
+        description: "New password and confirmation do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+    if (error) {
+      toast({
+        title: "Password Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Password Updated",
+        description: "Your password has been changed successfully.",
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    }
   };
 
   return (
@@ -73,7 +117,9 @@ const SettingsPage = () => {
           </TabsTrigger>
         </TabsList>
 
+        {/* --- Store Settings Tab --- */}
         <TabsContent value="store" className="space-y-4">
+          {/* Store Information */}
           <Card>
             <CardHeader>
               <CardTitle>Store Settings</CardTitle>
@@ -139,6 +185,7 @@ const SettingsPage = () => {
             </CardFooter>
           </Card>
 
+          {/* Store Preferences */}
           <Card>
             <CardHeader>
               <CardTitle>Store Preferences</CardTitle>
@@ -194,7 +241,9 @@ const SettingsPage = () => {
           </Card>
         </TabsContent>
 
+        {/* --- Account Tab --- */}
         <TabsContent value="account" className="space-y-4">
+          {/* Basic Info */}
           <Card>
             <CardHeader>
               <CardTitle>Account Information</CardTitle>
@@ -230,6 +279,7 @@ const SettingsPage = () => {
             </CardFooter>
           </Card>
 
+          {/* Change Password */}
           <Card>
             <CardHeader>
               <CardTitle>Change Password</CardTitle>
@@ -238,23 +288,39 @@ const SettingsPage = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="currentPassword">Current Password</Label>
-                <Input id="currentPassword" type="password" />
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="newPassword">New Password</Label>
-                <Input id="newPassword" type="password" />
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input id="confirmPassword" type="password" />
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
               </div>
             </CardContent>
             <CardFooter>
-              <Button>Change Password</Button>
+              <Button onClick={handleChangePassword}>Change Password</Button>
             </CardFooter>
           </Card>
         </TabsContent>
 
+        {/* --- Notifications Tab --- */}
         <TabsContent value="notifications" className="space-y-4">
           <Card>
             <CardHeader>
@@ -311,6 +377,7 @@ const SettingsPage = () => {
           </Card>
         </TabsContent>
 
+        {/* --- Security Tab --- */}
         <TabsContent value="security" className="space-y-4">
           <Card>
             <CardHeader>
