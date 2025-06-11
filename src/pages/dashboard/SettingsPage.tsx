@@ -437,8 +437,7 @@ const SettingsPage = () => {
               <div className="border-t pt-4">
                 <p className="text-xs text-gray-500">
                   Your store's payment processing is secured with
-                  industry-standard encryption. All customer payment data is
-                  handled according to PCI DSS guidelines.
+                  industry-standard encryption.
                 </p>
               </div>
             </CardContent>
