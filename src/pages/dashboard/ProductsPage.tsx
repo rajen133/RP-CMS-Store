@@ -47,16 +47,18 @@ import {
 import * as Yup from "yup";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
+import supabase from "@/lib/supabase";
+import { useToast } from "@/components/ui/use-toast";
 
 // Validation schema
-const productSchema = Yup.object().shape({
+const productSchema = Yup.object({
   name: Yup.string().required("Name is required"),
   description: Yup.string().required("Description is required"),
-  price: Yup.number(),
-  stock: Yup.number(),
+  price: Yup.number().required("Price is required"),
+  stock: Yup.number().required("Stock is required"),
   category: Yup.string().required("Category is required"),
-  imageUrl: Yup.string().url("Invalid URL format"),
-  featured: Yup.boolean(),
+  imageFile: Yup.mixed().required("Image is required"),
+  featured: Yup.boolean().required("Featured status is required"),
 });
 
 const defaultValues = {
@@ -64,7 +66,7 @@ const defaultValues = {
   price: 0,
   stock: 0,
   category: "",
-  imageUrl: "",
+  imageFile: "",
   description: "",
   featured: false,
 };
@@ -77,12 +79,14 @@ const ProductsPage = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
+  const { toast } = useToast();
 
   const {
     register,
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(productSchema),
@@ -110,22 +114,58 @@ const ProductsPage = () => {
 
   const handleAddProduct = async () => {
     const data = watch();
+    const file = data.imageFile?.[0];
+
+    let imageUrl = "";
+
+    if (file) {
+      const filePath = `products/${Date.now()}_${file.name}`;
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("electronics")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        toast({
+          variant: "destructive",
+          title: "Image Upload Failed",
+          description: uploadError.message,
+        });
+        return;
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("electronics")
+        .getPublicUrl(filePath);
+
+      imageUrl = publicUrlData.publicUrl;
+    }
+
     await addProduct({
-      name: data.name || "",
-      description: data.description || "",
-      price: data.price || 0,
-      stock: data.stock || 0,
-      category: data.category || "",
-      imageUrl: data.imageUrl || "",
+      name: data.name,
+      description: data.description,
+      price: data.price,
+      stock: data.stock,
+      category: data.category,
+      imageFile: imageUrl,
       featured: data.featured || false,
     });
+
     resetFormAndClose();
   };
 
   const handleEditProduct = async () => {
     if (!currentProduct) return;
     const data = watch();
-    await updateProduct(currentProduct.id, data);
+    const updatedData = {
+      ...data,
+      imageFile: data.imageFile?.[0]
+        ? data.imageFile[0].name
+        : currentProduct?.imageFile,
+    };
+    await updateProduct(currentProduct.id, updatedData);
     resetFormAndClose();
   };
 
@@ -148,7 +188,7 @@ const ProductsPage = () => {
       price: product.price ?? 0,
       stock: product.stock ?? 0,
       category: product.category ?? "",
-      imageUrl: product.imageUrl ?? "",
+      imageFile: product.imageFile ?? "",
       featured: product.featured ?? false,
     });
     setIsEditDialogOpen(true);
@@ -255,7 +295,7 @@ const ProductsPage = () => {
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 bg-gray-100 rounded overflow-hidden">
                             <img
-                              src={product.imageUrl || "/placeholder.svg"}
+                              src={product.imageFile || "/placeholder.svg"}
                               alt={product.name}
                               className="w-full h-full object-cover"
                               onError={(e) => {
@@ -399,83 +439,123 @@ const ProductsPage = () => {
                 <Label htmlFor="price" className="text-right mt-2">
                   Price
                 </Label>
-                <Input
-                  id="price"
-                  name="price"
-                  type="number"
-                  {...register("price")}
-                  className="w-full"
-                />
-                {errors.price && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {errors.price.message}
-                  </p>
-                )}
+                <div className="col-span-3">
+                  <Input
+                    id="price"
+                    name="price"
+                    type="number"
+                    {...register("price")}
+                    className="w-full"
+                  />
+                  {errors.price && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {errors.price.message}
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-4 items-start gap-4">
                 <Label htmlFor="stock" className="text-right mt-2">
                   Stock
                 </Label>
-                <Input
-                  id="stock"
-                  name="stock"
-                  type="number"
-                  {...register("stock")}
-                  className="w-full"
-                />
-                {errors.stock && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {errors.stock.message}
-                  </p>
-                )}
+                <div className="col-span-3">
+                  <Input
+                    id="stock"
+                    name="stock"
+                    type="number"
+                    {...register("stock")}
+                    className="w-full"
+                  />
+                  {errors.stock && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {errors.stock.message}
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-4 items-start gap-4">
-                <Label htmlFor="category" className="text-right mt-2">
+                <Label htmlFor="edit-category" className="text-right mt-2">
                   Category
                 </Label>
-                <Input
-                  id="category"
-                  name="category"
-                  {...register("category")}
-                  className="w-full"
-                />
-                {errors.category && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {errors.category.message}
-                  </p>
-                )}
+                <div className="col-span-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left hover:bg-transparent hover:text-inherit hover:shadow-none"
+                      >
+                        {watch("category") || (
+                          <span className="text-muted-foreground">
+                            Select category
+                          </span>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-full">
+                      {[
+                        "Electronics",
+                        "Clothing",
+                        "Home & Kitchen",
+                        "Stationery",
+                      ].map((cat) => (
+                        <DropdownMenuItem
+                          key={cat}
+                          onSelect={() =>
+                            setValue("category", cat, {
+                              shouldValidate: true,
+                            })
+                          }
+                        >
+                          {cat}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {errors.category && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {errors.category.message}
+                    </p>
+                  )}
+                </div>
               </div>
+
               <div className="grid grid-cols-4 items-start gap-4">
-                <Label htmlFor="imageUrl" className="text-right mt-2">
-                  Image URL
+                <Label htmlFor="imageFile" className="text-right mt-2">
+                  Image
                 </Label>
-                <Input
-                  id="imageUrl"
-                  name="imageUrl"
-                  {...register("imageUrl")}
-                  className="w-full"
-                />
-                {errors.imageUrl && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {errors.imageUrl.message}
-                  </p>
-                )}
+                <div className="col-span-3">
+                  <Input
+                    id="imageFile"
+                    name="ImageFile"
+                    type="file"
+                    accept="image/*"
+                    {...register("imageFile")}
+                    className="w-full hover:cursor-pointer"
+                  />
+                  {errors.imageFile && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {errors.imageFile.message}
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-4 items-start gap-4">
                 <Label htmlFor="description" className="text-right mt-2">
                   Description
                 </Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  {...register("description")}
-                  className="w-full"
-                />
-                {errors.description && (
-                  <span className="text-sm text-red-500 mt-1">
-                    {errors.description.message}
-                  </span>
-                )}
+                <div className="col-span-3">
+                  <Textarea
+                    id="description"
+                    name="description"
+                    {...register("description")}
+                    className="w-full"
+                  />
+                  {errors.description && (
+                    <span className="text-sm text-red-500 mt-1">
+                      {errors.description.message}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="featured" className="text-right">
@@ -590,11 +670,29 @@ const ProductsPage = () => {
                   Category
                 </Label>
                 <div className="col-span-3">
-                  <Input
-                    id="edit-category"
-                    {...register("category")}
-                    className="w-full"
-                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-full text-left">
+                        {watch("category") || "Select category"}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-full">
+                      {["Electronics", "Clothing", "Home & Kitchen"].map(
+                        (cat) => (
+                          <DropdownMenuItem
+                            key={cat}
+                            onSelect={() =>
+                              setValue("category", cat, {
+                                shouldValidate: true,
+                              })
+                            }
+                          >
+                            {cat}
+                          </DropdownMenuItem>
+                        )
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   {errors.category && (
                     <p className="text-sm text-red-500 mt-1">
                       {errors.category.message}
@@ -604,19 +702,34 @@ const ProductsPage = () => {
               </div>
 
               <div className="grid grid-cols-4 items-start gap-4">
-                <Label htmlFor="edit-imageUrl" className="text-right mt-2">
-                  Image URL
+                <Label htmlFor="imageFile" className="text-right mt-2">
+                  Image
                 </Label>
-                <div className="col-span-3">
-                  <Input
-                    id="edit-imageUrl"
-                    {...register("imageUrl")}
-                    className="w-full"
-                  />
-                  {errors.imageUrl && (
-                    <p className="text-sm text-red-500 mt-1">
-                      {errors.imageUrl.message}
-                    </p>
+                <div className="col-span-3 flex items-center gap-4">
+                  {/* File Input */}
+                  <div className="flex-1">
+                    <Input
+                      id="imageFile"
+                      name="imageFile"
+                      type="file"
+                      accept="image/*"
+                      {...register("imageFile")}
+                      className="w-full hover:cursor-pointer"
+                    />
+                    {errors.imageFile && (
+                      <p className="text-sm text-red-500 mt-1">
+                        {errors.imageFile.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Current Image Preview */}
+                  {currentProduct?.imageFile && (
+                    <img
+                      src={currentProduct.imageFile}
+                      alt="Current Product"
+                      className="h-10 w-10 object-cover rounded border"
+                    />
                   )}
                 </div>
               </div>
@@ -715,3 +828,6 @@ const ProductsPage = () => {
 };
 
 export default ProductsPage;
+function toast(arg0: { variant: string; title: string; description: string }) {
+  throw new Error("Function not implemented.");
+}

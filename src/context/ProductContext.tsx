@@ -16,7 +16,7 @@ export type Product = {
   price: number;
   stock: number;
   category: string;
-  imageUrl: string;
+  imageFile: string;
   featured: boolean;
   created_at: string;
 };

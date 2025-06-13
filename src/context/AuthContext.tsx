@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         id: sessionUser.id,
         name: sessionUser.user_metadata?.name ?? "",
         email: sessionUser.email ?? "",
-        role: sessionUser.user_metadata?.role ?? "customer",
+        role: sessionUser.user_metadata?.role ?? "admin",
       });
     }
     setIsLoading(false);
@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             id: sessionUser.id,
             name: sessionUser.user_metadata?.name ?? "",
             email: sessionUser.email ?? "",
-            role: sessionUser.user_metadata?.role ?? "customer",
+            role: sessionUser.user_metadata?.role ?? "admin",
           });
         } else {
           setUser(null);
@@ -97,7 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         id: sessionUser.id,
         name: sessionUser.user_metadata?.name ?? "",
         email: sessionUser.email ?? "",
-        role: sessionUser.user_metadata?.role ?? "customer",
+        role: sessionUser.user_metadata?.role ?? "admin",
       });
       toast({
         title: "Login successful",
@@ -127,7 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         options: {
           data: {
             name,
-            role: "customer", // Default role for new users
+            role: "admin", // Default role for new users
           },
         },
       });
@@ -164,7 +164,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "http://localhost:8080/reset-password", // ⬅️ update this to match your dev or prod URL
+        redirectTo: "https://rpcms-store.netlify.app/reset-password", // ⬅️ update this to match your dev or prod URL
       });
 
       if (error) throw error;
