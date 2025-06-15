@@ -302,6 +302,7 @@ const ProductsPage = () => {
                                 (e.target as HTMLImageElement).src =
                                   "/placeholder.svg";
                               }}
+                              loading="lazy"
                             />
                           </div>
                           <span className="truncate max-w-[200px]">
