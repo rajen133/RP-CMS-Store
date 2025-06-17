@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -15,18 +15,49 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Settings, User, BellRing, Shield, CreditCard } from "lucide-react";
 import supabase from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
+import * as yup from "yup";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+
+// validation schema for store settings
+export const storeSettingsSchema = yup.object().shape({
+  storeName: yup
+    .string()
+    .required("Store name is required")
+    .max(100, "Store name must be at most 100 characters"),
+  email: yup
+    .string()
+    .email("Invalid email address")
+    .required("Store email is required"),
+  storePhone: yup
+    .string()
+    .required("Phone number is required")
+    .matches(/^\(?\+?[0-9\s\-()]{7,20}$/, "Invalid phone number format"),
+  storeAddress: yup
+    .string()
+    .required("Store address is required")
+    .max(200, "Address must be at most 200 characters"),
+  currencySymbol: yup
+    .string()
+    .required("Currency symbol is required")
+    .max(3, "Use only 1–3 characters for currency symbol"),
+  enableGuestCheckout: yup.boolean(),
+  enableReviews: yup.boolean(),
+});
 
 const SettingsPage = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [storeSettings, setStoreSettings] = useState({
     storeName: "RP-CMS Store",
-    storeEmail: "rajendrapanjiyar101@gmail.com",
+    email: "rajendrapanjiyar101@gmail.com",
     storePhone: "(+977) 9766340362",
     storeAddress: "Dhobighat, Lalitpur, Nepal",
     currencySymbol: "$",
-    notifyOnNewOrders: true,
-    notifyOnLowStock: true,
+    notify_on_new_orders: true,
+    notify_on_low_stock: true,
     enableGuestCheckout: false,
     enableReviews: true,
   });
@@ -34,6 +65,48 @@ const SettingsPage = () => {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [name, setName] = useState(user?.name || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setValue,
+    watch,
+  } = useForm({
+    resolver: yupResolver(storeSettingsSchema),
+    defaultValues: storeSettings, // from your state
+  });
+
+  // Fetch store settings data
+  useEffect(() => {
+    const fetchStoreSettings = async () => {
+      const { data, error } = await supabase
+        .from("store_settings")
+        .select("*")
+        .eq("user_id", user?.id)
+        .limit(1);
+
+      if (data?.length) {
+        const settings = data[0];
+        setStoreSettings(settings);
+        Object.keys(settings).forEach((key) => {
+          setValue(key as any, settings[key]);
+        });
+        if (error) {
+          toast({
+            title: "Error",
+            description: `Error fetching store settings: ${error.message}`,
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    if (user) {
+      fetchStoreSettings();
+    }
+  }, [user]);
 
   const handleStoreSettingsChange = (
     e: React.ChangeEvent<HTMLInputElement>
@@ -45,11 +118,49 @@ const SettingsPage = () => {
     }));
   };
 
-  const handleSaveStoreSettings = () => {
-    toast({
-      title: "Settings Updated",
-      description: "Your store settings have been saved successfully.",
-    });
+  // Save store settings to the database
+  const handleSaveStoreSettings = async (data: any) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("store_settings")
+      .upsert({
+        user_id: user.id,
+        ...data,
+      })
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Settings Updated",
+        description: "Your store settings have been saved successfully.",
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        email,
+        data: { name },
+      });
+      if (error) {
+        throw new Error(error.message);
+      }
+      console.log("Clicked");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        variant: "destructive",
+        description: error.message,
+      });
+    }
   };
 
   const handleChangePassword = async () => {
@@ -119,126 +230,121 @@ const SettingsPage = () => {
 
         {/* --- Store Settings Tab --- */}
         <TabsContent value="store" className="space-y-4">
-          {/* Store Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Store Settings</CardTitle>
-              <CardDescription>
-                Configure your store's basic information.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="storeName">Store Name</Label>
-                  <Input
-                    id="storeName"
-                    name="storeName"
-                    value={storeSettings.storeName}
-                    onChange={handleStoreSettingsChange}
-                  />
+          <form
+            onSubmit={handleSubmit(handleSaveStoreSettings)}
+            className="space-y-4"
+          >
+            {/* Store Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Store Settings</CardTitle>
+                <CardDescription>
+                  Configure your store's basic information.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="storeName">Store Name</Label>
+                    <Input id="storeName" {...register("storeName")} />
+                    {errors.storeName && (
+                      <p className="text-sm text-red-500">
+                        {errors.storeName.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Store Email</Label>
+                    <Input id="email" type="email" {...register("email")} />
+                    {errors.email && (
+                      <p className="text-sm text-red-500">
+                        {errors.email.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="storePhone">Store Phone Number</Label>
+                    <Input id="storePhone" {...register("storePhone")} />
+                    {errors.storePhone && (
+                      <p className="text-sm text-red-500">
+                        {errors.storePhone.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="currencySymbol">Currency Symbol</Label>
+                    <Input
+                      id="currencySymbol"
+                      maxLength={3}
+                      {...register("currencySymbol")}
+                    />
+                    {errors.currencySymbol && (
+                      <p className="text-sm text-red-500">
+                        {errors.currencySymbol.message}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="storeEmail">Store Email</Label>
-                  <Input
-                    id="storeEmail"
-                    name="storeEmail"
-                    type="email"
-                    value={storeSettings.storeEmail}
-                    onChange={handleStoreSettingsChange}
-                  />
+                  <Label htmlFor="storeAddress">Store Address</Label>
+                  <Input id="storeAddress" {...register("storeAddress")} />
+                  {errors.storeAddress && (
+                    <p className="text-sm text-red-500">
+                      {errors.storeAddress.message}
+                    </p>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="storePhone">Store Phone Number</Label>
-                  <Input
-                    id="storePhone"
-                    name="storePhone"
-                    value={storeSettings.storePhone}
-                    onChange={handleStoreSettingsChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="currencySymbol">Currency Symbol</Label>
-                  <Input
-                    id="currencySymbol"
-                    name="currencySymbol"
-                    value={storeSettings.currencySymbol}
-                    onChange={handleStoreSettingsChange}
-                    maxLength={3}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="storeAddress">Store Address</Label>
-                <Input
-                  id="storeAddress"
-                  name="storeAddress"
-                  value={storeSettings.storeAddress}
-                  onChange={handleStoreSettingsChange}
-                />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleSaveStoreSettings}>
-                Save Store Settings
-              </Button>
-            </CardFooter>
-          </Card>
+              </CardContent>
+              <CardFooter>
+                <Button type="submit">Save Store Settings</Button>
+              </CardFooter>
+            </Card>
 
-          {/* Store Preferences */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Store Preferences</CardTitle>
-              <CardDescription>
-                Customize how your store operates.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="enableGuestCheckout" className="flex-1">
-                  Enable Guest Checkout
-                  <span className="block text-sm text-gray-500">
-                    Allow customers to checkout without creating an account
-                  </span>
-                </Label>
-                <Switch
-                  id="enableGuestCheckout"
-                  name="enableGuestCheckout"
-                  checked={storeSettings.enableGuestCheckout}
-                  onCheckedChange={(checked) =>
-                    setStoreSettings((prev) => ({
-                      ...prev,
-                      enableGuestCheckout: checked,
-                    }))
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="enableReviews" className="flex-1">
-                  Enable Product Reviews
-                  <span className="block text-sm text-gray-500">
-                    Allow customers to leave reviews on products
-                  </span>
-                </Label>
-                <Switch
-                  id="enableReviews"
-                  name="enableReviews"
-                  checked={storeSettings.enableReviews}
-                  onCheckedChange={(checked) =>
-                    setStoreSettings((prev) => ({
-                      ...prev,
-                      enableReviews: checked,
-                    }))
-                  }
-                />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleSaveStoreSettings}>
-                Save Preferences
-              </Button>
-            </CardFooter>
-          </Card>
+            {/* Store Preferences */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Store Preferences</CardTitle>
+                <CardDescription>
+                  Customize how your store operates.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="enableGuestCheckout" className="flex-1">
+                    Enable Guest Checkout
+                    <span className="block text-sm text-gray-500">
+                      Allow customers to checkout without creating an account
+                    </span>
+                  </Label>
+                  <Switch
+                    id="enableGuestCheckout"
+                    checked={watch("enableGuestCheckout")}
+                    onCheckedChange={(checked) =>
+                      setValue("enableGuestCheckout", checked)
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="enableReviews" className="flex-1">
+                    Enable Product Reviews
+                    <span className="block text-sm text-gray-500">
+                      Allow customers to leave reviews on products
+                    </span>
+                  </Label>
+                  <Switch
+                    id="enableReviews"
+                    checked={watch("enableReviews")}
+                    onCheckedChange={(checked) =>
+                      setValue("enableReviews", checked)
+                    }
+                  />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button type="submit">Save Preferences</Button>
+              </CardFooter>
+            </Card>
+          </form>
         </TabsContent>
 
         {/* --- Account Tab --- */}
@@ -254,15 +360,20 @@ const SettingsPage = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" defaultValue="Rajendra Panjiyar" />
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
-                    defaultValue="rajendrapanjiyar101@gmail.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
               </div>
@@ -275,7 +386,7 @@ const SettingsPage = () => {
               </div>
             </CardContent>
             <CardFooter>
-              <Button>Save Account Information</Button>
+              <Button onClick={handleSave}>Save Account Information</Button>
             </CardFooter>
           </Card>
 
@@ -331,39 +442,39 @@ const SettingsPage = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label htmlFor="notifyOnNewOrders" className="flex-1">
+                <Label htmlFor="notify_on_new_orders" className="flex-1">
                   New Orders
                   <span className="block text-sm text-gray-500">
                     Get notified when a new order is placed
                   </span>
                 </Label>
                 <Switch
-                  id="notifyOnNewOrders"
-                  name="notifyOnNewOrders"
-                  checked={storeSettings.notifyOnNewOrders}
+                  id="notify_on_new_orders"
+                  name="notify_on_new_orders"
+                  checked={storeSettings.notify_on_new_orders}
                   onCheckedChange={(checked) =>
                     setStoreSettings((prev) => ({
                       ...prev,
-                      notifyOnNewOrders: checked,
+                      notify_on_new_orders: checked,
                     }))
                   }
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="notifyOnLowStock" className="flex-1">
+                <Label htmlFor="notify_on_low_stock" className="flex-1">
                   Low Stock Alerts
                   <span className="block text-sm text-gray-500">
                     Get notified when product inventory is running low
                   </span>
                 </Label>
                 <Switch
-                  id="notifyOnLowStock"
-                  name="notifyOnLowStock"
-                  checked={storeSettings.notifyOnLowStock}
+                  id="notify_on_low_stock"
+                  name="notify_on_low_stock"
+                  checked={storeSettings.notify_on_low_stock}
                   onCheckedChange={(checked) =>
                     setStoreSettings((prev) => ({
                       ...prev,
-                      notifyOnLowStock: checked,
+                      notify_on_low_stock: checked,
                     }))
                   }
                 />

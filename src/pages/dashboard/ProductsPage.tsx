@@ -135,15 +135,26 @@ const ProductsPage = () => {
         return;
       }
 
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage
+      // Get public URL (no error is returned here!)
+      const { publicUrl } = supabase.storage
         .from("electronics")
-        .getPublicUrl(filePath);
+        .getPublicUrl(filePath).data;
 
-      imageUrl = publicUrlData.publicUrl;
+      if (!publicUrl) {
+        toast({
+          variant: "destructive",
+          title: "Image URL Error",
+          description:
+            "Failed to generate a public URL for the uploaded image.",
+        });
+        return;
+      }
+
+      imageUrl = publicUrl;
     }
 
-    await addProduct({
+    // Save product with the public image URL
+    const productToSave = {
       name: data.name,
       description: data.description,
       price: data.price,
@@ -151,6 +162,22 @@ const ProductsPage = () => {
       category: data.category,
       imageFile: imageUrl,
       featured: data.featured || false,
+    };
+
+    try {
+      await addProduct(productToSave);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Product Creation Failed",
+        description: error.message || "An unknown error occurred.",
+      });
+      return;
+    }
+
+    toast({
+      title: "Product Added",
+      description: `${data.name} has been successfully added.`,
     });
 
     resetFormAndClose();
@@ -302,6 +329,7 @@ const ProductsPage = () => {
                                 (e.target as HTMLImageElement).src =
                                   "/placeholder.svg";
                               }}
+                              loading="lazy"
                             />
                           </div>
                           <span className="truncate max-w-[200px]">

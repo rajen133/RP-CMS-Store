@@ -4,6 +4,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import DashboardSidebar from "@/components/DashboardSidebar";
 import { useAuth } from "@/context/AuthContext";
 import { UserIcon } from "lucide-react";
+import SessionTimeoutWatcher from "./sessionTimeout/SessionTimeoutHandler";
 
 const DashboardLayout = () => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -12,6 +13,7 @@ const DashboardLayout = () => {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      <SessionTimeoutWatcher />
       {/* Sidebar */}
       <DashboardSidebar
         isMobileOpen={isMobileOpen}

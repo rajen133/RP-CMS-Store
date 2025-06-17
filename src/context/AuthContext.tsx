@@ -38,23 +38,23 @@ const AuthContext = createContext<AuthContextType>({
   resetPassword: async () => {},
 });
 
-// Mock users for demo
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  // Check if user is logged
+  // Load user session
   const getUser = async () => {
     const { data } = await supabase.auth.getSession();
     const sessionUser = data.session?.user;
+
     if (sessionUser) {
+      const metadata = sessionUser.user_metadata || {};
       setUser({
         id: sessionUser.id,
-        name: sessionUser.user_metadata?.name ?? "",
+        name: metadata.name ?? "",
         email: sessionUser.email ?? "",
-        role: sessionUser.user_metadata?.role ?? "admin",
+        role: (metadata.role as "admin" | "customer" | "seller") ?? "admin",
       });
     }
     setIsLoading(false);
@@ -62,21 +62,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     getUser();
+
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         const sessionUser = session?.user;
+
         if (sessionUser) {
+          const metadata = sessionUser.user_metadata || {};
           setUser({
             id: sessionUser.id,
-            name: sessionUser.user_metadata?.name ?? "",
+            name: metadata.name ?? "",
             email: sessionUser.email ?? "",
-            role: sessionUser.user_metadata?.role ?? "admin",
+            role: (metadata.role as "admin" | "customer" | "seller") ?? "admin",
           });
         } else {
           setUser(null);
         }
       }
     );
+
     return () => {
       authListener?.subscription.unsubscribe();
     };
@@ -93,17 +97,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       const sessionUser = data.user;
+      const metadata = sessionUser.user_metadata || {};
+
       setUser({
         id: sessionUser.id,
-        name: sessionUser.user_metadata?.name ?? "",
+        name: metadata.name ?? "",
         email: sessionUser.email ?? "",
-        role: sessionUser.user_metadata?.role ?? "admin",
+        role: (metadata.role as "admin" | "customer" | "seller") ?? "admin",
       });
+
       toast({
         title: "Login successful",
-        description: `Welcome back, ${
-          sessionUser.user_metadata?.name ?? "User"
-        }!`,
+        description: `Welcome back, ${metadata.name ?? "User"}!`,
       });
     } catch (error: any) {
       toast({
@@ -127,10 +132,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         options: {
           data: {
             name,
-            role: "admin", // Default role for new users
+            role: "admin", // Always assign admin role
           },
         },
       });
+
       if (error) throw error;
 
       toast({
@@ -161,10 +167,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Reset password function
   const resetPassword = async (email: string) => {
     setIsLoading(true);
-
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "https://rpcms-store.netlify.app/reset-password", // ⬅️ update this to match your dev or prod URL
+        redirectTo: "https://rpcms-store.netlify.app/reset-password",
       });
 
       if (error) throw error;
