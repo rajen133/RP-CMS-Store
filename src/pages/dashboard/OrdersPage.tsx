@@ -63,6 +63,31 @@ const OrdersPage = () => {
     }
   };
 
+  // Function to export orders to CSV
+  const exportOrdersToCSV = () => {
+    const headers = ["Order ID", "Customer", "Date", "Status", "Total"];
+
+    const rows = orders.map((order) => [
+      order.id,
+      order.customer_name,
+      new Date(order.created_at).toLocaleDateString(),
+      order.status,
+      order.total.toFixed(2),
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers, ...rows].map((e) => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "orders.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -70,7 +95,7 @@ const OrdersPage = () => {
           <h1 className="text-2xl font-bold tracking-tight">Orders</h1>
           <p className="text-gray-500">Manage customer orders and status</p>
         </div>
-        <Button variant="outline">
+        <Button variant="outline" onClick={exportOrdersToCSV}>
           <Download className="mr-2 h-4 w-4" />
           Export
         </Button>

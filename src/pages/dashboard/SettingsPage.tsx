@@ -20,6 +20,19 @@ import * as yup from "yup";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 
+export interface StoreSettings {
+  user_id: string;
+  storeName: string;
+  email: string;
+  storePhone: string;
+  storeAddress: string;
+  currencySymbol: string;
+  notify_on_new_orders?: boolean;
+  notify_on_low_stock?: boolean;
+  enableGuestCheckout?: boolean;
+  enableReviews?: boolean;
+}
+
 // validation schema for store settings
 export const storeSettingsSchema = yup.object().shape({
   storeName: yup
@@ -44,6 +57,8 @@ export const storeSettingsSchema = yup.object().shape({
     .max(3, "Use only 1–3 characters for currency symbol"),
   enableGuestCheckout: yup.boolean(),
   enableReviews: yup.boolean(),
+  notify_on_new_orders: yup.boolean(),
+  notify_on_low_stock: yup.boolean(),
 });
 
 const SettingsPage = () => {
@@ -61,7 +76,7 @@ const SettingsPage = () => {
     enableGuestCheckout: false,
     enableReviews: true,
   });
-
+  const [isLoading, setIsLoading] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -118,29 +133,65 @@ const SettingsPage = () => {
     }));
   };
 
-  // Save store settings to the database
-  const handleSaveStoreSettings = async (data: any) => {
+  // Save or update store settings to the database
+  const saveOrUpdateStoreSettings = async (formData: StoreSettings) => {
     if (!user) return;
 
-    const { error } = await supabase
-      .from("store_settings")
-      .upsert({
-        user_id: user.id,
-        ...data,
-      })
-      .eq("user_id", user.id);
+    setIsLoading(true);
 
-    if (error) {
+    try {
+      // Check if settings already exist
+      const { data: existingSettings, error: fetchError } = await supabase
+        .from("store_settings")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (fetchError && fetchError.code !== "PGRST116") {
+        // PGRST116 = no rows found, which is acceptable
+        throw fetchError;
+      }
+
+      // If exists, update
+      if (existingSettings) {
+        const { data, error } = await supabase
+          .from("store_settings")
+          .update(formData)
+          .eq("user_id", user.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setStoreSettings(data);
+        toast({
+          title: "Settings Updated",
+          description: "Store settings has been updated successfully.",
+        });
+      } else {
+        // If not exists, insert
+        const { data, error } = await supabase
+          .from("store_settings")
+          .insert({ user_id: user.id, ...formData })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setStoreSettings(data);
+        toast({
+          title: "Settings Saved",
+          description: "Store settings has been saved successfully.",
+        });
+      }
+    } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message,
         variant: "destructive",
+        title: "Failed to save settings",
+        description: error.message,
       });
-    } else {
-      toast({
-        title: "Settings Updated",
-        description: "Your store settings have been saved successfully.",
-      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -231,7 +282,7 @@ const SettingsPage = () => {
         {/* --- Store Settings Tab --- */}
         <TabsContent value="store" className="space-y-4">
           <form
-            onSubmit={handleSubmit(handleSaveStoreSettings)}
+            onSubmit={handleSubmit(saveOrUpdateStoreSettings)}
             className="space-y-4"
           >
             {/* Store Information */}
@@ -451,12 +502,9 @@ const SettingsPage = () => {
                 <Switch
                   id="notify_on_new_orders"
                   name="notify_on_new_orders"
-                  checked={storeSettings.notify_on_new_orders}
+                  checked={!!watch("notify_on_new_orders")}
                   onCheckedChange={(checked) =>
-                    setStoreSettings((prev) => ({
-                      ...prev,
-                      notify_on_new_orders: checked,
-                    }))
+                    setValue("notify_on_new_orders", checked)
                   }
                 />
               </div>
@@ -470,21 +518,18 @@ const SettingsPage = () => {
                 <Switch
                   id="notify_on_low_stock"
                   name="notify_on_low_stock"
-                  checked={storeSettings.notify_on_low_stock}
+                  checked={!!watch("notify_on_low_stock")}
                   onCheckedChange={(checked) =>
-                    setStoreSettings((prev) => ({
-                      ...prev,
-                      notify_on_low_stock: checked,
-                    }))
+                    setValue("notify_on_low_stock", checked)
                   }
                 />
               </div>
             </CardContent>
-            <CardFooter>
-              <Button onClick={handleSaveStoreSettings}>
-                Save Notification Settings
-              </Button>
-            </CardFooter>
+            <form onSubmit={handleSubmit(saveOrUpdateStoreSettings)}>
+              <CardFooter>
+                <Button type="submit">Save Notification Settings</Button>
+              </CardFooter>
+            </form>
           </Card>
         </TabsContent>
 

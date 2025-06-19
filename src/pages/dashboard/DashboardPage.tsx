@@ -41,20 +41,36 @@ const DashboardPage = () => {
   const salesData = getSalesData();
 
   // Product categories data for the bar chart
+  const fixedCategories = [
+    "Electronics",
+    "Clothing",
+    "Home & Kitchen",
+    "Stationery",
+  ];
+
+  const normalizeCategory = (cat: string) =>
+    cat
+      .trim()
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+
   const getProductCategoryData = () => {
     const categoryCount: Record<string, number> = {};
 
     products.forEach((product) => {
-      const category = product.category || "Other";
+      const rawCategory = product.category || "Other";
+      const category = normalizeCategory(rawCategory);
       categoryCount[category] = (categoryCount[category] || 0) + 1;
     });
 
-    return Object.entries(categoryCount).map(([name, value]) => ({
-      name,
-      value,
+    return fixedCategories.map((cat) => ({
+      name: cat,
+      value: categoryCount[cat] || 0,
     }));
   };
+
   const productCategoryData = getProductCategoryData();
+  console.log("Product Category Data:", productCategoryData);
 
   return (
     <div className="space-y-6">
@@ -168,14 +184,19 @@ const DashboardPage = () => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={productCategoryData}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                margin={{ top: 5, right: 30, left: 20, bottom: 15 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis
+                  dataKey="name"
+                  interval={0}
+                  angle={-20}
+                  textAnchor="end"
+                />
                 <YAxis />
                 <Tooltip />
-                <Legend />
-                <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                <Legend layout="vertical" align="right" verticalAlign="top" />
+                <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

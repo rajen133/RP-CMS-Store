@@ -287,6 +287,9 @@ const ProductsPage = () => {
                 <DropdownMenuItem onClick={() => setSearchTerm("home")}>
                   Home & Kitchen
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSearchTerm("stationery")}>
+                  Stationery
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -705,20 +708,23 @@ const ProductsPage = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-full">
-                      {["Electronics", "Clothing", "Home & Kitchen"].map(
-                        (cat) => (
-                          <DropdownMenuItem
-                            key={cat}
-                            onSelect={() =>
-                              setValue("category", cat, {
-                                shouldValidate: true,
-                              })
-                            }
-                          >
-                            {cat}
-                          </DropdownMenuItem>
-                        )
-                      )}
+                      {[
+                        "Electronics",
+                        "Clothing",
+                        "Home & Kitchen",
+                        "Stationery",
+                      ].map((cat) => (
+                        <DropdownMenuItem
+                          key={cat}
+                          onSelect={() =>
+                            setValue("category", cat, {
+                              shouldValidate: true,
+                            })
+                          }
+                        >
+                          {cat}
+                        </DropdownMenuItem>
+                      ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
                   {errors.category && (
